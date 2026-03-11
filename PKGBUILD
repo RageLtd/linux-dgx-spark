@@ -114,7 +114,24 @@ prepare() {
   scripts/config --enable DRM_SIMPLEDRM
   scripts/config --enable SYSFB_SIMPLEFB
   scripts/config --enable FRAMEBUFFER_CONSOLE_DEFERRED_TAKEOVER
+  # Filesystems needed for archiso live boot
+  scripts/config --module ISO9660_FS
+  scripts/config --enable SQUASHFS_XZ
+  scripts/config --enable SQUASHFS_LZO
+  scripts/config --enable SQUASHFS_ZSTD
+  # Device-mapper: archiso hook requires dm-snapshot for overlay setup
+  scripts/config --module DM_SNAPSHOT
+  # USB: UAS for modern USB 3.0 drives
+  scripts/config --module USB_UAS
   make olddefconfig
+
+  # Verify critical overrides survived olddefconfig
+  for opt in DRM_SIMPLEDRM ISO9660_FS SQUASHFS_XZ; do
+    if ! grep -q "CONFIG_${opt}=[ym]" .config; then
+      error "CONFIG_${opt} was stripped by olddefconfig!"
+      exit 1
+    fi
+  done
 
   diff -u "${startdir}/configs/config.aarch64" .config || :
 
@@ -146,7 +163,9 @@ _package() {
   local modulesdir="${pkgdir}/usr/lib/modules/${kernver}"
 
   echo "Installing boot image..."
-  install -Dm644 "$(make -s image_name)" "${modulesdir}/vmlinuz"
+  # Install uncompressed Image — Limine on aarch64 doesn't support gzip-compressed kernels.
+  # image_name returns Image.gz but we need the raw Image with ARM64 magic header.
+  install -Dm644 "arch/arm64/boot/Image" "${modulesdir}/vmlinuz"
   echo "${pkgbase}" | install -Dm644 /dev/stdin "${modulesdir}/pkgbase"
 
   echo "Installing modules..."
