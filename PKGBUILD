@@ -106,6 +106,16 @@ prepare() {
 
   # Sync config with current kernel source
   make olddefconfig
+
+  # DGX Spark overrides: match stock DGX OS kernel config for display.
+  # Build DRM + simpledrm as built-in so framebuffer console works
+  # immediately at boot without initramfs module loading.
+  scripts/config --enable DRM
+  scripts/config --enable DRM_SIMPLEDRM
+  scripts/config --enable SYSFB_SIMPLEFB
+  scripts/config --enable FRAMEBUFFER_CONSOLE_DEFERRED_TAKEOVER
+  make olddefconfig
+
   diff -u "${startdir}/configs/config.aarch64" .config || :
 
   # Write version file for packaging (used by $(<version) in package functions)
