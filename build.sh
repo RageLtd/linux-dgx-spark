@@ -9,6 +9,7 @@
 #   ./build.sh download     # only download sources to cache/
 #   ./build.sh config       # download + container + generate configs/config.aarch64
 #   ./build.sh pkg          # only run makepkg (config must already exist)
+#   ./build.sh -f           # force rebuild (overwrite existing packages)
 #
 # Prerequisites: Docker (with linux/arm64 support, e.g. Apple Silicon)
 
@@ -18,6 +19,16 @@ IMAGE_NAME="dgx-spark-builder"
 PLATFORM="linux/arm64"
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CACHE_DIR="${REPO_DIR}/cache"
+FORCE=""
+
+# Parse flags
+while getopts "f" opt; do
+  case "$opt" in
+    f) FORCE="-f" ;;
+    *) echo "Usage: $0 [-f] [all|config|pkg|download]"; exit 1 ;;
+  esac
+done
+shift $((OPTIND - 1))
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -33,6 +44,7 @@ docker_run() {
     --rm \
     -e HOST_UID="$HOST_UID" \
     -e HOST_GID="$HOST_GID" \
+    -e FORCE="$FORCE" \
     -v "${REPO_DIR}":/build \
     -v dgx-spark-builddir:/tmp/makepkg \
     -w /build \
@@ -157,10 +169,10 @@ build_packages() {
     sudo chown -R builder:builder /build /tmp/makepkg
     if [[ -f ${_prepared} ]]; then
       echo '==> Source tree already prepared, incremental build (-e)'
-      SRCDEST=/build/cache BUILDDIR=/tmp/makepkg makepkg -e -s --noconfirm
+      SRCDEST=/build/cache BUILDDIR=/tmp/makepkg makepkg -e -s --noconfirm ${FORCE}
     else
       echo '==> Fresh build (extract + prepare + build)'
-      SRCDEST=/build/cache BUILDDIR=/tmp/makepkg makepkg -s --noconfirm
+      SRCDEST=/build/cache BUILDDIR=/tmp/makepkg makepkg -s --noconfirm ${FORCE}
     fi
     cp /tmp/makepkg/*.pkg.tar.* /build/ 2>/dev/null || true
     sudo chown \${HOST_UID}:\${HOST_GID} /build/*.pkg.tar.* 2>/dev/null || true
@@ -193,7 +205,7 @@ case "$cmd" in
     build_packages
     ;;
   *)
-    echo "Usage: $0 [all|config|pkg|download]"
+    echo "Usage: $0 [-f] [all|config|pkg|download]"
     exit 1
     ;;
 esac
