@@ -1,0 +1,36 @@
+pkgbase = linux-dgx-spark
+	pkgdesc = Linux kernel for NVIDIA DGX Spark (GB10 Grace-Blackwell)
+	pkgver = 6.17.0.1012_12
+	pkgrel = 1
+	url = https://launchpad.net/ubuntu/+source/linux-nvidia-6.17
+	arch = aarch64
+	license = GPL2
+	makedepends = bc
+	makedepends = cpio
+	makedepends = gettext
+	makedepends = libelf
+	makedepends = pahole
+	makedepends = perl
+	makedepends = python
+	makedepends = tar
+	makedepends = xz
+	makedepends = zstd
+	options = !strip
+	source = https://launchpad.net/ubuntu/+archive/primary/+sourcefiles/linux-nvidia-6.17/6.17.0-1012.12/linux-nvidia-6.17_6.17.0.orig.tar.gz
+	source = https://launchpad.net/ubuntu/+archive/primary/+sourcefiles/linux-nvidia-6.17/6.17.0-1012.12/linux-nvidia-6.17_6.17.0-1012.12.diff.gz
+	sha256sums = SKIP
+	sha256sums = SKIP
+
+pkgname = linux-dgx-spark
+	pkgdesc = The Linux kernel for NVIDIA DGX Spark (GB10 Grace-Blackwell) kernel and modules
+	depends = coreutils
+	depends = kmod
+	depends = initramfs
+	optdepends = wireless-regdb: to set the correct wireless channels of your country
+	optdepends = linux-firmware: firmware images needed for some devices
+	provides = linux=6.17.0.1012_12
+
+pkgname = linux-dgx-spark-headers
+	pkgdesc = Headers and scripts for building modules for the Linux kernel for NVIDIA DGX Spark (GB10 Grace-Blackwell) kernel
+	depends = linux-dgx-spark=6.17.0.1012_12
+	provides = linux-headers=6.17.0.1012_12

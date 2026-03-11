@@ -1,0 +1,8 @@
+src/
+pkg/
+cache/
+*.pkg.tar.zst
+*.pkg.tar.xz
+*.log
+.git/
+log

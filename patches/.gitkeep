@@ -1,0 +1,2 @@
+# placeholder - keeps patches/ tracked by git
+# add any .patch files here to have them applied during the PKGBUILD prepare() step
