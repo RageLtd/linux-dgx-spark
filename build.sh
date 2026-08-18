@@ -10,6 +10,7 @@
 #   ./build.sh config       # download + container + generate configs/config.aarch64
 #   ./build.sh pkg          # only run makepkg (config must already exist)
 #   ./build.sh -f           # force rebuild (overwrite existing packages)
+#   ./build.sh -p 64k       # build the 64K page-size variant (linux-dgx-spark-64k)
 #
 # Prerequisites: Docker (with linux/arm64 support, e.g. Apple Silicon)
 
@@ -20,15 +21,22 @@ PLATFORM="linux/arm64"
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CACHE_DIR="${REPO_DIR}/cache"
 FORCE=""
+PAGESIZE="4k"
 
 # Parse flags
-while getopts "f" opt; do
+while getopts "fp:" opt; do
   case "$opt" in
     f) FORCE="-f" ;;
-    *) echo "Usage: $0 [-f] [all|config|pkg|download]"; exit 1 ;;
+    p) PAGESIZE="$OPTARG" ;;
+    *) echo "Usage: $0 [-f] [-p 4k|64k] [all|config|pkg|download]"; exit 1 ;;
   esac
 done
 shift $((OPTIND - 1))
+
+case "$PAGESIZE" in
+  4k|64k) ;;
+  *) echo "ERROR: -p must be 4k or 64k (got: ${PAGESIZE})" >&2; exit 1 ;;
+esac
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -45,6 +53,7 @@ docker_run() {
     -e HOST_UID="$HOST_UID" \
     -e HOST_GID="$HOST_GID" \
     -e FORCE="$FORCE" \
+    -e _PAGESIZE="$PAGESIZE" \
     -v "${REPO_DIR}":/build \
     -v dgx-spark-builddir:/tmp/makepkg \
     -w /build \
@@ -156,7 +165,12 @@ build_packages() {
   # Source version metadata to locate the source tree
   source "${REPO_DIR}/configs/version.env"
   local _srcver="linux-${_kver_series}"
-  local _prepared="/tmp/makepkg/linux-dgx-spark/src/${_srcver}/version"
+  # BUILDDIR subdir is keyed on pkgbase, so 4k and 64k variants keep
+  # separate build trees and are independently incremental.
+  local _pagesuffix=""
+  [[ "$PAGESIZE" == "64k" ]] && _pagesuffix="-64k"
+  local _pkgbase="linux-dgx-spark${_pagesuffix}"
+  local _prepared="/tmp/makepkg/${_pkgbase}/src/${_srcver}/version"
 
   # SRCDEST: keep downloaded sources on the bind mount (cache-friendly, no re-download)
   # BUILDDIR: extract + compile on container-local ext4 (case-sensitive — macOS
@@ -178,7 +192,7 @@ build_packages() {
     sudo chown \${HOST_UID}:\${HOST_GID} /build/*.pkg.tar.* 2>/dev/null || true
   "
   log "Done! Packages:"
-  ls -1 "${REPO_DIR}"/linux-dgx-spark-*.pkg.tar.* 2>/dev/null || echo "  (no packages found — check build output above)"
+  ls -1 "${REPO_DIR}/${_pkgbase}"-*.pkg.tar.* 2>/dev/null || echo "  (no packages found — check build output above)"
 }
 
 # ── Main ─────────────────────────────────────────────────────────────────────

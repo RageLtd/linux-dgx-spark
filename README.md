@@ -50,6 +50,21 @@ Individual steps can be run separately:
 ./build.sh pkg        # only run makepkg (config must already exist)
 ```
 
+### 64K page-size variant
+
+```bash
+./build.sh -p 64k
+```
+
+Builds `linux-dgx-spark-64k` — the same kernel with 64K pages, mirroring the
+`kernel-64k` variant Red Hat ships for the GB10. NVIDIA recommends 64K pages
+for Grace-class unified memory throughput, at the cost of higher memory
+overhead and possible breakage in userspace that assumes 4K pages (some
+Electron builds, `box64`, older jemalloc). Both variants install side by side
+(separate pkgbase, modules, and initramfs) so you can A/B them from the
+bootloader menu. The 4K and 64K builds keep separate incremental build trees
+in the Docker volume.
+
 To force a clean build, delete the Docker volume:
 
 ```bash
@@ -102,8 +117,15 @@ top of the ARM64 defconfig using the kernel's own `scripts/config` tool.
 
 PRs welcome, especially:
 - Keeping up with new kernel versions from NVIDIA
-- Packaging the NVIDIA GPU driver modules as a companion DKMS package
 - Testing on the Asus Ascent GX10 (same GB10 silicon)
+
+## GPU driver
+
+No companion driver package is needed: Arch Linux ARM ships `nvidia-open-dkms`
+and `nvidia-utils` for aarch64 (610.57.04+, which supports the GB10). Install
+them alongside `linux-dgx-spark-headers` and DKMS builds the open kernel
+modules (nvidia, nvidia-uvm, nvidia-drm, nvidia-modeset, nvidia-peermem) for
+every installed kernel variant automatically.
 
 ## License
 

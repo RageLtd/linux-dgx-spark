@@ -19,11 +19,21 @@ else
   exit 1
 fi
 
-pkgbase=linux-dgx-spark
+# Page-size variant: 4k (default) or 64k (mirrors RHEL's kernel-64k for GB10 —
+# better throughput on Grace unified memory, higher memory overhead, and some
+# userspace still assumes 4K pages). Select with: _PAGESIZE=64k (build.sh -p 64k)
+_pagesize="${_PAGESIZE:-4k}"
+case "$_pagesize" in
+  4k)  _pagesuffix="" ;;
+  64k) _pagesuffix="-64k" ;;
+  *)   echo "ERROR: _PAGESIZE must be 4k or 64k (got: ${_pagesize})" >&2; exit 1 ;;
+esac
+
+pkgbase=linux-dgx-spark${_pagesuffix}
 pkgname=("${pkgbase}" "${pkgbase}-headers")
 pkgver=${_kernelver}.${_ubuntupkg//./_}
 pkgrel=1
-pkgdesc="Linux kernel for NVIDIA DGX Spark (GB10 Grace-Blackwell)"
+pkgdesc="Linux kernel for NVIDIA DGX Spark (GB10 Grace-Blackwell)${_pagesuffix:+ (64K pages)}"
 arch=('aarch64')
 url="https://launchpad.net/ubuntu/+source/linux-nvidia-${_kver_series}"
 license=('GPL2')
@@ -102,7 +112,7 @@ prepare() {
   cp "${startdir}/configs/config.aarch64" .config
 
   # Set the local version string
-  echo "-dgx-spark" > localversion.10-pkgname
+  echo "-dgx-spark${_pagesuffix}" > localversion.10-pkgname
 
   # Sync config with current kernel source
   make olddefconfig
@@ -123,10 +133,25 @@ prepare() {
   scripts/config --module DM_SNAPSHOT
   # USB: UAS for modern USB 3.0 drives
   scripts/config --module USB_UAS
+  # Onboard MT7925 WiFi 7 chip — missing from the nixos-dgx-spark delta;
+  # Red Hat's nvidia-gb10 kernel enables it and backports mt7925 fixes
+  # (already present in the Ubuntu diff). Firmware ships in linux-firmware.
+  scripts/config --module MT7925E
+  # ConnectX-7 PCIe hotplug (NVIDIA SAUCE driver, Mediatek root port) —
+  # enabled as a module in Red Hat's nvidia-gb10 config.
+  scripts/config --module MTK_PCIE_HOTPLUG
+  if [[ "$_pagesize" == "64k" ]]; then
+    # 64K granule — same choice RHEL ships as kernel-64k for GB10.
+    # VA/PA bits stay at 48, valid for the 64K granule.
+    scripts/config --disable ARM64_4K_PAGES
+    scripts/config --enable ARM64_64K_PAGES
+  fi
   make olddefconfig
 
   # Verify critical overrides survived olddefconfig
-  for opt in DRM_SIMPLEDRM ISO9660_FS SQUASHFS_XZ; do
+  local _required=(DRM_SIMPLEDRM ISO9660_FS SQUASHFS_XZ MT7925E MTK_PCIE_HOTPLUG)
+  [[ "$_pagesize" == "64k" ]] && _required+=(ARM64_64K_PAGES)
+  for opt in "${_required[@]}"; do
     if ! grep -q "CONFIG_${opt}=[ym]" .config; then
       error "CONFIG_${opt} was stripped by olddefconfig!"
       exit 1
